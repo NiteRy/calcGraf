@@ -20,6 +20,7 @@ class CalculadoraTotal:
         self.setup_derivadas()
         self.setup_integrais()
         self.setup_equacoes()
+        self.setup_graficos_3d()
 
     def criar_layout(self, tab):
         container = tk.Frame(tab)
@@ -161,6 +162,78 @@ class CalculadoraTotal:
         tk.Button(f_main, text="Resolver Agora", command=resolver_smart, bg="#FF9800", fg="white", font=("Arial", 10, 'bold')).pack(pady=10)
         res.pack()
 
+    
+    # --- TAB 4: GRÁFICOS 3D INTELIGENTES ---
+    def setup_graficos_3d(self):
+        tab = ttk.Frame(self.notebook)
+        self.notebook.add(tab, text="Plotador 3D")
+        esq, dir = self.criar_layout(tab)
+
+        tk.Label(esq, text="Função f(x, y, z) = 0 ou Z = f(x,y):", font=('Arial', 10, 'bold')).pack(pady=(10, 5))
+        ent_f = tk.Entry(esq, width=45, font=('Arial', 10))
+        ent_f.insert(0, "x + y + z - 2") # Exemplo: plano x+y+z=2 escrito como equação = 0
+        ent_f.pack(pady=5)
+
+        tk.Label(esq, text="Limites de X (min, max):", fg="gray").pack()
+        ent_x = tk.Entry(esq, width=20); ent_x.insert(0, "-5, 5"); ent_x.pack(pady=5)
+
+        tk.Label(esq, text="Limites de Y (min, max):", fg="gray").pack()
+        ent_y = tk.Entry(esq, width=20); ent_y.insert(0, "-5, 5"); ent_y.pack(pady=5)
+
+        tk.Label(esq, text="Limites de Z (min, max):", fg="gray").pack()
+        ent_z = tk.Entry(esq, width=20); ent_z.insert(0, "-5, 5"); ent_z.pack(pady=5)
+
+        def gerar_grafico():
+            for w in dir.winfo_children(): w.destroy()
+            try:
+                f_expr = sp.sympify(ent_f.get())
+                x_min, x_max = map(float, ent_x.get().split(','))
+                y_min, y_max = map(float, ent_y.get().split(','))
+
+                # SE O UTILIZADOR USOU 'z', O SYMPY ISOLA-O AUTOMATICAMENTE (Assume f(x,y,z) = 0)
+                if f_expr.has(self.z):
+                    solucoes = sp.solve(f_expr, self.z)
+                    if solucoes:
+                        f_expr = solucoes[0] # Usa a primeira solução encontrada para Z
+                    else:
+                        raise ValueError("Não foi possível isolar a variável Z nesta expressão.")
+
+                # Converter para função numérica executável pelo NumPy
+                f_num = sp.lambdify((self.x, self.y), f_expr, 'numpy')
+                
+                x_v = np.linspace(x_min, x_max, 60)
+                y_v = np.linspace(y_min, y_max, 60)
+                X, Y = np.meshgrid(x_v, y_v)
+                Z_vals = f_num(X, Y)
+
+                if isinstance(Z_vals, (int, float)):
+                    Z_vals = np.full(X.shape, Z_vals)
+
+                fig = plt.figure(figsize=(6, 5))
+                ax = fig.add_subplot(111, projection='3d')
+                
+                superficie = ax.plot_surface(X, Y, Z_vals, cmap='plasma', edgecolor='none')
+                fig.colorbar(superficie, ax=ax, shrink=0.5, aspect=10)
+                
+                ax.set_title(f"Superfície: Z = {f_expr}")
+                ax.set_xlabel('Eixo X')
+                ax.set_ylabel('Eixo Y')
+                ax.set_zlabel('Eixo Z')
+
+                # Aplicar os limites de visualização vertical (Z) introduzidos na UI
+                if ent_z.get().strip():
+                    z_min, z_max = map(float, ent_z.get().split(','))
+                    ax.set_zlim(z_min, z_max)
+
+                canvas = FigureCanvasTkAgg(fig, master=dir)
+                canvas.draw()
+                canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+            except Exception as e:
+                messagebox.showerror("Erro no Plotador 3D", f"Verifique a sintaxe.\nErro: {e}")
+
+        btn_plot = tk.Button(esq, text="Gerar Superfície 3D", command=gerar_grafico, bg="#9C27B0", fg="white", font=("Arial", 10, "bold"))
+        btn_plot.pack(pady=20)
 if __name__ == "__main__":
     root = tk.Tk()
     app = CalculadoraTotal(root)
